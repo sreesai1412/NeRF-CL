@@ -4,7 +4,7 @@
 
 Download `nerf_synthetic` from [here](https://drive.google.com/drive/folders/128yBriW1IG_3NJ5Rp7APSTZsJqdJdfc1)
 
-## Training model
+## Training
 
 ### Offline CL
 
@@ -53,7 +53,7 @@ python train.py \
 
 #### Evaluation
 
-On test set.\
+On the **test set**.\
 This will create folder `results/{dataset_name}/{scene_name}/{save_dir_name}` and run inference on the test data, finally create a gif out of them.
 ```
 python eval.py \
@@ -66,7 +66,7 @@ python eval.py \
    --save_dir_name 'results'
 ```
 
-Running inference on train set to generate soft tragets and Stage 1 losses.\
+Running inference on the **train set** to generate **soft tragets** and **stage 1 losses**.\
 This will create folders `{root_dir}/soft_targets` and `{root_dir}/stage1_losses`
 ```
 python eval.py \
