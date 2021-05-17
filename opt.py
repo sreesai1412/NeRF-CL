@@ -75,7 +75,7 @@ def get_opts():
                         help='exponent for polynomial learning rate decay')
     ###########################
 
-    ### params for Continual Learning ###
+    ################### params for Continual Learning ################################
     parser.add_argument('--continual_mode', action='store_true', default=False)
 
     parser.add_argument('--train_view', type=str, choices=['right', 'left'], 
@@ -116,32 +116,29 @@ def get_opts():
                         help='value between 0 to 1, for combining imgcentre weight and loss based weights')
     ###################################################################
 
-    ########## Online CL args ##########################
-
+    ######################## Online CL args ##########################
     parser.add_argument('--online_cl_mode', action='store_true')
 
-    parser.add_argument('--num_frames', type=int, required=True)
+    parser.add_argument('--num_frames', type=int,
+                       help='number of frames in online trajectory')
     
-    parser.add_argument('--chunk_size', type=int, required=True)
+    parser.add_argument('--chunk_size', type=int,
+                       help='size of chunk (in number of frames) to train for at a given time')
 
-    parser.add_argument('--num_iters_per_chunk', type=int, required=True)
+    parser.add_argument('--num_iters_per_chunk', type=int,
+                       help='number of iterations to train on a single chunk')
 
-    parser.add_argument('--save_plots', action='store_true')
+    parser.add_argument('--save_plots', action='store_true',
+                       help='whether to save plots after each epoch for making a GIF')
 
-    parser.add_argument('--val_after_n_epochs', type=int, required=True)
+    parser.add_argument('--resume', type=int, 
+                        help='frame in the trajectory from which to resume, in case training is stopped abruptly')
+    ######################################################################
 
-    parser.add_argument('--resume', type=int)
-
+    parser.add_argument('--val_after_n_epochs', type=int, required=True,
+                       help='number of epochs after which to run validation')    
     
-
-
-
-    
-    
-    
-    
-    
-    parser.add_argument('--exp_name', type=str, default='exp',
+    parser.add_argument('--exp_name', type=str, required=True,
                         help='experiment name')
 
     parser.add_argument('--exp_seed', type=int, required=True, help='seeding everything for repeatability')
