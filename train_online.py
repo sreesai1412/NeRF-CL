@@ -1,3 +1,4 @@
+from frame_buffer import FrameBuffer
 import os, sys
 from opt import get_opts
 import torch
@@ -26,7 +27,8 @@ from pytorch_lightning.loggers import TestTubeLogger
 
 import pytorch_lightning as pl
 
-from buffer import Buffer
+from buffer_online import Buffer
+from frame_buffer import FrameBuffer
 
 class NeRFSystem(LightningModule):
     def __init__(self, hparams):
@@ -46,12 +48,15 @@ class NeRFSystem(LightningModule):
             self.nerf_fine = NeRF()
             self.models += [self.nerf_fine]
 
-        if self.hparams.use_replay_buf:
-            self.replay_buf = Buffer(self.hparams, buffer_size=self.hparams.buffer_size, 
-                                    batch_size=self.hparams.batch_size)
-            
-            self.replay_buf.fill_buffer()
+        if self.hparams.online_cl_mode:
+            self.frame_buf = FrameBuffer(self.hparams, batch_size=self.hparams.batch_size, epoch=self.hparams.resume)
 
+        if self.hparams.use_replay_buf:
+            self.replay_buf = Buffer(self.hparams, batch_size=self.hparams.batch_size, epoch=self.hparams.resume)
+
+        if hparams.save_plots:
+            self.plots_dir = f'./plots/{self.hparams.exp_name}'
+            os.makedirs(self.plots_dir , exist_ok=True)
 
     def decode_batch(self, batch):
         rays = batch['rays'] # (B, 8)
@@ -90,7 +95,7 @@ class NeRFSystem(LightningModule):
             kwargs['spheric_poses'] = self.hparams.spheric_poses
             kwargs['val_num'] = self.hparams.num_gpus
         
-        self.train_dataset = dataset(self.hparams, split='train', view = self.hparams.train_view, **kwargs)
+        self.train_dataset = dataset(self.hparams, split='train', **kwargs)
         self.val_dataset = dataset(self.hparams, split='val', **kwargs)
 
     def configure_optimizers(self):
@@ -100,20 +105,11 @@ class NeRFSystem(LightningModule):
         return [self.optimizer], [scheduler]
 
     def train_dataloader(self):
-        loader = DataLoader(self.train_dataset,
-                          shuffle=True,
+        loader = DataLoader(self.frame_buf,
+                          shuffle=False,
                           num_workers=2,
                           batch_size=self.hparams.batch_size,
                           pin_memory=True)
-  
-        if self.hparams.use_replay_buf and self.hparams.buffer_sample_mode == 'random':
-            replay_loader = DataLoader(self.replay_buf,
-                                        shuffle=True,
-                                        num_workers=2,
-                                        batch_size=self.hparams.batch_size,
-                                        pin_memory=True)
-            return {'new': loader, 'replay':replay_loader}
-
         return loader
 
     def val_dataloader(self):
@@ -125,48 +121,36 @@ class NeRFSystem(LightningModule):
     
     def training_step(self, batch, batch_nb):
         self.log('lr', get_learning_rate(self.optimizer))
+        num_iters_per_chunk = self.hparams.num_iters_per_chunk
 
-        if self.hparams.use_replay_buf:
-            if self.hparams.buffer_sample_mode == 'random':
-                new_batch = batch['new']
-                replay_batch = batch['replay']
-            elif self.hparams.buffer_sample_mode == 'weighted_random':
-                new_batch = batch
-                replay_batch = self.replay_buf.get_batch(self.hparams.exploration_ratio)
-            elif self.hparams.buffer_sample_mode == 'topk':
-                new_batch = batch
-                replay_batch = self.replay_buf.get_topk_batch()
-        else:
-          new_batch = batch
-          
+        step = self.global_step
+
+        if step % num_iters_per_chunk == 0:
+          self.frame_buf.fill_chunk(int(step / num_iters_per_chunk))
+        
+        new_batch = self.frame_buf.get_batch()
+
         rays, rgbs = self.decode_batch(new_batch)
         results = self(rays)
         loss = self.loss(results, rgbs)
 
-        if self.hparams.continual_mode:
+        if self.hparams.use_replay_buf:
+            inds = new_batch['idx']
+            losses = self.loss_vector(results, rgbs).mean(dim=1)
+            self.replay_buf.update_buffer(inds.detach().cpu(),losses.detach().cpu())
 
-            if self.hparams.distillation:
-                soft_rgbs = new_batch['soft_rgbs']
-                distill_loss = self.loss(results, soft_rgbs)
-                loss += distill_loss
-                self.log('train/distill_loss', distill_loss, prog_bar=True)
+            if self.current_epoch > 0:
+                replay_batch = self.replay_buf.get_batch(self.current_epoch, self.hparams.exploration_ratio)        
+                rays_replay, replay_rgbs = self.decode_batch(replay_batch)
+                replay_inds = replay_batch['idx']
+                results_replay = self.forward(rays_replay)
+                replay_losses = self.loss_vector(results_replay, replay_rgbs).mean(dim=1)
 
-            if self.hparams.use_replay_buf:
-                replay_rays, replay_rgbs = self.decode_batch(replay_batch)
-                replay_results = self(replay_rays)
-                if self.hparams.use_soft_targets_for_replay:
-                    replay_rgbs = replay_batch['soft_rgbs']
-                
-                if self.hparams.dynamic_buffer_update:
-                    replay_inds = replay_batch['idx']
-                    replay_losses = self.loss_vector(replay_results, replay_rgbs).mean(dim=1)
-                    replay_loss = replay_losses.mean()
-                    self.replay_buf.update_buffer(replay_inds.detach().cpu(),replay_losses.detach().cpu())
-                else:
-                    replay_loss = self.loss(replay_results, replay_rgbs)
-                
-                loss += replay_loss
-                self.log('train/replay_loss', replay_loss, prog_bar=True)
+                replay_loss_total = replay_losses.mean()
+                loss += (replay_loss_total)
+
+                self.replay_buf.update_buffer(replay_inds.detach().cpu(),replay_losses.detach().cpu())
+                self.log('train/replay_loss', replay_loss_total, prog_bar=True)
 
 
         self.log('train/loss', loss, prog_bar=True)
@@ -177,25 +161,51 @@ class NeRFSystem(LightningModule):
             self.log('train/psnr', psnr_, prog_bar=True)
 
         return loss
+    
+    def on_train_epoch_end(self, outs):
+      if self.hparams.save_plots:
+          epoch = self.current_epoch
+          seq_ids = [i for i in range(self.hparams.num_frames)]
+          losses = [0 for i in range(self.hparams.num_frames)]
+          psnrs = [0 for i in range(self.hparams.num_frames)]
+        
+          for i in range(0,epoch+1):
+            for j in range(self.hparams.chunk_size):
+              frame = self.frame_buf.get_frame_batch(i,j)
+              rays, rgbs = self.decode_batch(frame)
+              rays = rays.squeeze() 
+              rgbs = rgbs.squeeze() 
+              results = self(rays) 
+              losses[(self.hparams.chunk_size*i) + j]=self.loss(results, rgbs).detach().item()
+              psnrs[(self.hparams.chunk_size*i) + j]=psnr(results['rgb_fine'], rgbs).detach().item()
+              del rays, rgbs, results
+
+          print(losses)
+          
+          import matplotlib.pyplot as plt
+          plt.clf()
+          plt.ylim(0,0.25)
+          plt.bar(seq_ids, losses)
+          plt.xlabel('Frame IDs')
+          plt.ylabel('Loss')
+          plt.savefig(os.path.join(self.plots_dir,'plotloss_'+str(epoch)+'.png'))
+
+          plt.clf()
+          plt.ylim(0,40)
+          plt.bar(seq_ids, psnrs)
+          plt.xlabel('Frame IDs')
+          plt.ylabel('PSNR')
+          plt.savefig(os.path.join(self.plots_dir,'plotpsnr_'+str(epoch)+'.png'))
+          print("Saved plot")
 
     def validation_step(self, batch, batch_nb):
-        rays, rgbs = self.decode_batch(batch['r'])
+        rays, rgbs = self.decode_batch(batch)
         rays = rays.squeeze() # (H*W, 3)
         rgbs = rgbs.squeeze() # (H*W, 3)
         results = self(rays)
-        loss_r = self.loss(results, rgbs)
-        self.log('val/loss_r', loss_r,prog_bar=True)
+        self.log('val/loss', self.loss(results, rgbs),prog_bar=True)
         typ = 'fine' if 'rgb_fine' in results else 'coarse'
-        self.log('val/psnr_r', psnr(results[f'rgb_{typ}'], rgbs),prog_bar=True)
-
-        rays, rgbs = self.decode_batch(batch['l'])
-        rays = rays.squeeze() # (H*W, 3)
-        rgbs = rgbs.squeeze() # (H*W, 3)
-        results = self(rays)
-        loss_l = self.loss(results, rgbs)
-        self.log('val/loss_l', loss_l, prog_bar=True)
-        typ = 'fine' if 'rgb_fine' in results else 'coarse'
-        self.log('val/psnr_l', psnr(results[f'rgb_{typ}'], rgbs),prog_bar=True)
+        self.log('val/psnr', psnr(results[f'rgb_{typ}'], rgbs),prog_bar=True)
     
         # if batch_nb == 0:
         #     W, H = self.hparams.img_wh
@@ -206,8 +216,6 @@ class NeRFSystem(LightningModule):
         #     stack = torch.stack([img_gt, img, depth]) # (3, 3, H, W)
         #     self.logger.experiment.add_images('val/GT_pred_depth',
         #                                        stack, self.global_step)
-
-        self.log('val/loss', (loss_r + loss_l)/2, prog_bar=True)
 
 
 if __name__ == '__main__':
@@ -233,6 +241,7 @@ if __name__ == '__main__':
                       resume_from_checkpoint=hparams.ckpt_path,
                       logger=logger,
                       weights_summary=None,
+                      check_val_every_n_epoch=hparams.val_after_n_epochs,
                       progress_bar_refresh_rate=1,
                       gpus=hparams.num_gpus,
                       distributed_backend='ddp' if hparams.num_gpus>1 else None,

@@ -1,5 +1,5 @@
 import torch
-import os
+import os,sys
 import numpy as np
 from collections import defaultdict
 from tqdm import tqdm
@@ -15,6 +15,8 @@ import metrics
 from datasets import dataset_dict
 from datasets.depth_utils import *
 
+from losses import loss_dict
+
 torch.backends.cudnn.benchmark = True
 
 def get_opts():
@@ -23,14 +25,14 @@ def get_opts():
                         default='/home/ubuntu/data/nerf_example_data/nerf_synthetic/lego',
                         help='root directory of dataset')
     parser.add_argument('--dataset_name', type=str, default='blender',
-                        choices=['blender', 'llff'],
+                        choices=['blender', 'llff','blender_new1','blender_new2'],
                         help='which dataset to validate')
     parser.add_argument('--scene_name', type=str, default='test',
                         help='scene name, used as output folder name')
-    parser.add_argument('--split', type=str, default='test',
-                        help='test or test_train')
-    parser.add_argument('--subsplit', type=str, required=True,
-                        help='test_rigt or test_left')
+    parser.add_argument('--split', type=str, default='test', required=True,
+                        choices=['test', 'infer_train'], 
+                        help='infer_train runs inference on the train set one image at a time for getting soft tragets and stage1 losses')
+ 
     parser.add_argument('--img_wh', nargs="+", type=int, default=[800, 800],
                         help='resolution (img_w, img_h) of the image')
     parser.add_argument('--spheric_poses', default=False, action="store_true",
@@ -56,6 +58,9 @@ def get_opts():
     parser.add_argument('--depth_format', type=str, default='pfm',
                         choices=['pfm', 'bytes'],
                         help='which format to save')
+
+    parser.add_argument('--test_view', type=str, required=True, choices=['right', 'left', 'NA'],
+                        help='which views from the test set to test for')
 
     return parser.parse_args()
 
@@ -95,13 +100,15 @@ if __name__ == "__main__":
     args = get_opts()
     w, h = args.img_wh
 
+    loss_fn = nn.MSELoss(reduction='none')
+
     kwargs = {'root_dir': args.root_dir,
               'split': args.split,
-              'subsplit': args.subsplit,
+              'view': args.test_view,
               'img_wh': tuple(args.img_wh)}
     if args.dataset_name == 'llff':
         kwargs['spheric_poses'] = args.spheric_poses
-    dataset = dataset_dict[args.dataset_name](**kwargs)
+    dataset = dataset_dict[args.dataset_name](args, **kwargs)
 
     embedding_xyz = Embedding(3, 10)
     embedding_dir = Embedding(3, 4)
@@ -120,9 +127,17 @@ if __name__ == "__main__":
     dir_name = f'results/{args.dataset_name}/{args.scene_name}/{args.save_dir_name}'
     os.makedirs(dir_name, exist_ok=True)
 
+    if args.split == 'infer_train':
+        soft_targets_dir = f'{args.root_dir}/soft_targets'
+        os.makedirs(soft_targets_dir , exist_ok=True)
+
+        losses_dir = f'{args.root_dir}/stage1_losses'
+        os.makedirs(losses_dir, exist_ok=True)
+
     for i in tqdm(range(len(dataset))):
         sample = dataset[i]
         rays = sample['rays'].cuda()
+        rgbs = sample['rgbs'].cuda()
         results = batched_inference(models, embeddings, rays,
                                     args.N_samples, args.N_importance, args.use_disp,
                                     args.chunk,
@@ -141,12 +156,22 @@ if __name__ == "__main__":
 
         img_pred_ = (img_pred*255).astype(np.uint8)
         imgs += [img_pred_]
-        imageio.imwrite(os.path.join(dir_name, f'r_{i:d}.png'), img_pred_)
+        
+        if args.split == 'infer_train':
+            imageio.imwrite(os.path.join(soft_targets_dir, f'r_{i:d}.png'), img_pred_)
+        else:
+            imageio.imwrite(os.path.join(dir_name, f'r_{i:d}.png'), img_pred_)
+
 
         if 'rgbs' in sample:
             rgbs = sample['rgbs']
             img_gt = rgbs.view(h, w, 3)
             psnrs += [metrics.psnr(img_gt, img_pred).item()]
+            
+            if args.split == 'infer_train': 
+                loss = loss_fn(torch.from_numpy(img_pred), img_gt).mean(dim=2)
+                loss = loss.clone().detach()
+                torch.save(loss, os.path.join(losses_dir, f'loss_{i:d}.pt'))
         
     imageio.mimsave(os.path.join(dir_name, f'{args.scene_name}.gif'), imgs, fps=30)
     

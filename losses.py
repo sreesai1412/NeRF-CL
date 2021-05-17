@@ -2,9 +2,9 @@ import torch
 from torch import nn
 
 class MSELoss(nn.Module):
-    def __init__(self):
+    def __init__(self, reduction='mean'):
         super(MSELoss, self).__init__()
-        self.loss = nn.MSELoss(reduction='mean')
+        self.loss = nn.MSELoss(reduction=reduction)
 
     def forward(self, inputs, targets):
         loss = self.loss(inputs['rgb_coarse'], targets)
