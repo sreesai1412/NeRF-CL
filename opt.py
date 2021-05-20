@@ -131,7 +131,7 @@ def get_opts():
     parser.add_argument('--save_plots', action='store_true',
                        help='whether to save plots after each epoch for making a GIF')
 
-    parser.add_argument('--resume', type=int, 
+    parser.add_argument('--resume', type=int, default=0, 
                         help='frame in the trajectory from which to resume, in case training is stopped abruptly')
     ######################################################################
 
