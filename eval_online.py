@@ -1,21 +1,20 @@
-import torch
-import os,sys
-import numpy as np
-from collections import defaultdict
-from tqdm import tqdm
-import imageio
+import os
+import sys
 from argparse import ArgumentParser
+from collections import defaultdict
 
-from models.rendering import render_rays
-from models.nerf import *
+import imageio
+import numpy as np
+import torch
+from tqdm import tqdm
 
-from utils import load_ckpt
 import metrics
-
 from datasets import dataset_dict
 from datasets.depth_utils import *
-
 from losses import loss_dict
+from models.nerf import *
+from models.rendering import render_rays
+from utils import load_ckpt
 
 torch.backends.cudnn.benchmark = True
 
@@ -25,7 +24,7 @@ def get_opts():
                         default='/home/ubuntu/data/nerf_example_data/nerf_synthetic/lego',
                         help='root directory of dataset')
     parser.add_argument('--dataset_name', type=str, default='blender',
-                        choices=['blender', 'llff','blender_new1','blender_new2'],
+                        choices=['blender', 'llff','blender_new1','blender_new2','blender_large'],
                         help='which dataset to validate')
     parser.add_argument('--scene_name', type=str, default='test',
                         help='scene name, used as output folder name')
@@ -104,7 +103,6 @@ if __name__ == "__main__":
 
     kwargs = {'root_dir': args.root_dir,
               'split': args.split,
-              'view': args.test_view,
               'img_wh': tuple(args.img_wh)}
     if args.dataset_name == 'llff':
         kwargs['spheric_poses'] = args.spheric_poses
@@ -134,8 +132,11 @@ if __name__ == "__main__":
         losses_dir = f'{args.root_dir}/stage1_losses'
         os.makedirs(losses_dir, exist_ok=True)
 
-    for i in tqdm(range(len(dataset))):
-        sample = dataset[i]
+    # Set path to saved tensor ile containing test indices here
+    indxs = torch.load('/content/drive/MyDrive/NERF/NeRF-CL-dev2/test_inds.pt')
+
+    for i in tqdm(range(len(indxs))):
+        sample = dataset.get_test_selected(i)
         rays = sample['rays'].cuda()
         rgbs = sample['rgbs'].cuda()
         results = batched_inference(models, embeddings, rays,
@@ -144,37 +145,15 @@ if __name__ == "__main__":
                                     dataset.white_back)
 
         img_pred = results['rgb_fine'].view(h, w, 3).cpu().numpy()
-        
-        if args.save_depth:
-            depth_pred = results['depth_fine'].view(h, w).cpu().numpy()
-            depth_pred = np.nan_to_num(depth_pred)
-            if args.depth_format == 'pfm':
-                save_pfm(os.path.join(dir_name, f'depth_{i:03d}.pfm'), depth_pred)
-            else:
-                with open(f'depth_{i:03d}', 'wb') as f:
-                    f.write(depth_pred.tobytes())
 
         img_pred_ = (img_pred*255).astype(np.uint8)
         imgs += [img_pred_]
         
-        if args.split == 'infer_train':
-            imageio.imwrite(os.path.join(soft_targets_dir, f'r_{i:d}.png'), img_pred_)
-        else:
-            imageio.imwrite(os.path.join(dir_name, f'r_{i:d}.png'), img_pred_)
-
-
         if 'rgbs' in sample:
             rgbs = sample['rgbs']
             img_gt = rgbs.view(h, w, 3)
             psnrs += [metrics.psnr(img_gt, img_pred).item()]
             
-            if args.split == 'infer_train': 
-                loss = loss_fn(torch.from_numpy(img_pred), img_gt).mean(dim=2)
-                loss = loss.clone().detach()
-                torch.save(loss, os.path.join(losses_dir, f'loss_{i:d}.pt'))
-        
-    imageio.mimsave(os.path.join(dir_name, f'{args.scene_name}.gif'), imgs, fps=30)
-    
     if psnrs:
         mean_psnr = np.mean(psnrs)
         print(f'Mean PSNR : {mean_psnr:.2f}')

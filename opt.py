@@ -7,7 +7,7 @@ def get_opts():
                         default='/home/ubuntu/data/nerf_example_data/nerf_synthetic/lego',
                         help='root directory of dataset')
     parser.add_argument('--dataset_name', type=str, default='blender',
-                        choices=['blender', 'llff', 'blender_online'],
+                        choices=['blender', 'llff', 'blender_online', 'blender_large', 'blender_large_online'],
                         help='which dataset to train/val')
     parser.add_argument('--img_wh', nargs="+", type=int, default=[800, 800],
                         help='resolution (img_w, img_h) of the image')
@@ -117,7 +117,7 @@ def get_opts():
     ###################################################################
 
     ######################## Online CL args ##########################
-    parser.add_argument('--online_cl_mode', action='store_true')
+    parser.add_argument('--online_mode', action='store_true', default=False)
 
     parser.add_argument('--num_frames', type=int,
                        help='number of frames in online trajectory')
@@ -128,13 +128,22 @@ def get_opts():
     parser.add_argument('--num_iters_per_chunk', type=int,
                        help='number of iterations to train on a single chunk')
 
+    parser.add_argument('--num_chunks',type=int, default=10)
+    parser.add_argument('--num_train_in_each_chunk', type=int, default=400)
+    parser.add_argument('--num_iters_per_epoch', type=int, default=200)
+    parser.add_argument('--online_buffer_size', type=int, default=2048000)
+    parser.add_argument('--online_buffer_fill_mode', type=str, default='highest_loss',
+                        choices=['highest_loss', 'lowest_loss', 'uniform'])
+    parser.add_argument('--online_buffer_sample_mode', type=str, default='random',
+                        choices=['random', 'weighted_random'])
+
     parser.add_argument('--save_plots', action='store_true',
                        help='whether to save plots after each epoch for making a GIF')
 
     parser.add_argument('--resume', type=int, default=0, 
                         help='frame in the trajectory from which to resume, in case training is stopped abruptly')
+    
     ######################################################################
-
     parser.add_argument('--val_after_n_epochs', type=int, required=True,
                        help='number of epochs after which to run validation')    
     
