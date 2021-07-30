@@ -128,14 +128,23 @@ def get_opts():
     parser.add_argument('--num_iters_per_chunk', type=int,
                        help='number of iterations to train on a single chunk')
 
-    parser.add_argument('--num_chunks',type=int, default=10)
-    parser.add_argument('--num_train_in_each_chunk', type=int, default=400)
-    parser.add_argument('--num_iters_per_epoch', type=int, default=200)
-    parser.add_argument('--online_buffer_size', type=int, default=2048000)
+    parser.add_argument('--num_chunks',type=int, default=10,
+                       help='number of chunks into which the trajectory is divided')
+    
+    parser.add_argument('--num_train_in_each_chunk', type=int, default=400,
+                       help='number of training frames in each chunk of the trajectory')
+    
+    parser.add_argument('--num_iters_per_epoch', type=int, default=200,
+                       help='use this option only for vanilla NeRF training of the large trajectory')
+    
+    parser.add_argument('--online_buffer_size', type=int, default=2048000,
+                       help='maximum buffer size')
+    
     parser.add_argument('--online_buffer_fill_mode', type=str, default='highest_loss',
-                        choices=['highest_loss', 'lowest_loss', 'uniform'])
+                        help='how to choose examples from previous tasks to fill the buffer', choices=['highest_loss', 'lowest_loss', 'uniform'])
+    
     parser.add_argument('--online_buffer_sample_mode', type=str, default='random',
-                        choices=['random', 'weighted_random'])
+                        help='how to sample a batch from the buffer for replay during each iteration', choices=['random', 'weighted_random'])
 
     parser.add_argument('--save_plots', action='store_true',
                        help='whether to save plots after each epoch for making a GIF')
