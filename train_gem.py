@@ -169,12 +169,6 @@ class NeRFSystem(LightningModule):
 
 
         if self.hparams.use_replay_buf:
-            if self.hparams.online_buffer_fill_mode == ('highest_loss' or 'lowest_loss'):
-                with torch.no_grad():
-                    inds = new_batch['idx']
-                    losses = self.loss_vector(results, rgbs).mean(dim=1)
-                    self.replay_buf.update_buffer(rays.detach(), rgbs.detach(), inds.detach(), losses.detach(), step)
-
             if self.current_epoch > 0:
                 replay_batch = self.replay_buf.get_batch(self.hparams.exploration_ratio)        
                 rays_replay, replay_rgbs = self.decode_batch(replay_batch)
@@ -207,6 +201,12 @@ class NeRFSystem(LightningModule):
         self.manual_backward(loss)
 
         if self.hparams.use_replay_buf:
+          if self.hparams.online_buffer_fill_mode == ('highest_loss' or 'lowest_loss'):
+                with torch.no_grad():
+                    inds = new_batch['idx']
+                    losses = self.loss_vector(results, rgbs).mean(dim=1)
+                    self.replay_buf.update_buffer(rays.detach(), rgbs.detach(), inds.detach(), losses.detach(), step)
+                    
           if self.current_epoch > 0:
             grad_cur = []
             for p in self.parameters():
