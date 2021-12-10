@@ -9,7 +9,7 @@ Please see my presenetation on [Continual Learning for Neural Coordinate Maps](h
 #### The [main](https://github.com/sreesai1412/NeRF-CL/tree/main) branch contains code for experiments on offline continual learning.
 
 ## Online Continual Learning
-1. Use the “Lego” (truck) scene <br/ >![lego_200k_256w](https://user-images.githubusercontent.com/48653063/145560347-f1f0fba6-6bcc-4059-9f40-dd5aea23df32.gif)
+1. Use the “Lego” (truck) scene ![lego_200k_256w](https://user-images.githubusercontent.com/48653063/145560347-f1f0fba6-6bcc-4059-9f40-dd5aea23df32.gif)
 2. Create a trajectory of 5000 frames using Blender
 3. Split the trajectory into 10 chunks of 500 images each as (0 to 499), (500 to 999)........ In each chunk sample 100 test images, 400 train images.
 4. 10 images representative of the each of the 10 chunks are shown below.
