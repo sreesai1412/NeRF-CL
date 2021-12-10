@@ -151,7 +151,7 @@ You can monitor the training process by `tensorboard --logdir logs/` and go to `
 4. 10 images representative of the each of the 10 chunks are shown below.
 ![Screenshot_2021-05-27_at_2 11 59_PM](https://user-images.githubusercontent.com/48653063/145557876-42201f9e-45b8-441c-83ce-6aea03319441.png)
 
-It is important to note here that there are no task boundaries in this setting and that this is a better simulation of an online setting. Unlike the first set of experiments where the network was aware of the task boundary and used continual learning techniques specifically during Task 2, the network is not aware of the transition between any of the 10 chunks and must adapt its training strategy automatically (for instance, this includes dynamically deciding what samples to retain in the the replay memory and what to discard if the memory is exhausted during training)
+It is important to note here that there are no task boundaries in this setting and that this is a better simulation of an online setting. Unlike offline continual learning experiments where the network was aware of the task boundary and used continual learning techniques specifically during Task 2, the network is not aware of the transition between any of the 10 chunks and must adapt its training strategy automatically (for instance, this includes dynamically deciding what samples to retain in the the replay memory and what to discard if the memory is exhausted during training)
 
 ## Experiments
 #### Demonstration of Catastrophic Forgetting
