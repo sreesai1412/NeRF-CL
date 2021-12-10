@@ -1,4 +1,49 @@
-# NeRF-CL
+# Continual Learning for NeRF
+
+## Online Continual Learning
+1. Use the “Lego” (truck) scene
+2. Create a trajectory of 5000 frames using Blender
+3. Split the trajectory into 10 chunks of 500 images each as (0 to 499), (500 to 999)........ In each chunk sample 100 test images, 400 train images.
+4. 10 images representative of the each of the 10 chunks are shown below.
+![Screenshot_2021-05-27_at_2 11 59_PM](https://user-images.githubusercontent.com/48653063/145557876-42201f9e-45b8-441c-83ce-6aea03319441.png)
+
+It is important to note here that there are no task boundaries in this setting and that this is a better simulation of an online setting. Unlike the first set of experiments where the network was aware of the task boundary and used continual learning techniques specifically during Task 2, the network is not aware of the transition between any of the 10 chunks and must adapt its training strategy automatically (for instance, this includes dynamically deciding what samples to retain in the the replay memory and what to discard if the memory is exhausted during training)
+
+## Experiments
+#### Demonstration of Catastrophic Forgetting
+
+1. Move chunk by chunk, train on rays from 400 train images for 2000 iterations, (with batch size=1024 rays)
+2. After training on each chunk, perform evaluation on test frames of current and previous chunks.
+
+Performance on data from earlier chunks degrades over time.
+![plot_psnr_no_replay](https://user-images.githubusercontent.com/48653063/145557985-b44391a5-c801-4cd3-9668-54ce87a469ff.gif)
+
+Tracking the evolution of a test image in the 3rd chunk.
+![Screenshot_2021-05-27_at_2 43 31_PM](https://user-images.githubusercontent.com/48653063/145559420-a6c87de5-fd04-4042-ac13-ed5366cf58dd.png)
+
+
+#### Applying a form of Continual Learning
+1. Use a replay memory whose maximum size is M = 10,24,000 rays. (half of the max buffer size as all previous experiments)
+2. Move chunk by chunk. After training on chunk "i" is done,
+    1. Sample 50 frames uniformly as frame 1, frame 8, frame 16, ......., frame 400
+    2. For each of the 50 frames,
+        1. divide frame into 4 x 4 grid 
+        2. find loss in each of the 16 regions
+        3. normalise losses to get L1, L2, L3,......L16 (all these losses sum to 1)
+        4. Sample L(i)*2048 rays randomly from each of the 16 regions
+        5. So in total 2048 rays are sampled from the given frame 
+    3. Add 50 * 2048 = 102400 rays (Max Memory/10) to memory  
+3. When training on chunk "i+1",  randomly sample new data from the "i+1"th chunk
+4. Also randomly sample data from the replay memory which contains rays from chunks 0, 1, ....i.
+5. Include loss due to both samples.
+6. Train for 2000 iterations per chunk.
+
+Performance on data from earlier chunks is maintained.
+![plot_psnr_er_grid_investig](https://user-images.githubusercontent.com/48653063/145558645-4a468b14-5b7b-44d9-9ac1-92e08a649937.gif) 
+
+Tracking the evolution of a test image in the 3rd chunk.
+![Screenshot_2021-05-31_at_2 29 57_PM](https://user-images.githubusercontent.com/48653063/145559160-8411d996-f5b1-4268-a7dd-670fcaa1b6ed.png)
+
 
 ## Training
 
