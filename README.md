@@ -72,8 +72,9 @@ Download `nerf_synthetic` from [here](https://drive.google.com/drive/folders/128
 
 ## Training
 
-#### Stage 1
+See [opt.py](opt.py) for all configurations.
 
+#### Stage 1
 ```
 python train.py \
    --dataset_name blender \
@@ -91,7 +92,6 @@ python train.py \
 ```
 
 #### Stage 2
-
 ```
 python train.py \
    --dataset_name blender \
@@ -142,12 +142,9 @@ python eval.py \
    --ckpt_path '/content/drive/MyDrive/NERF/nerf_clean/ckpts/exp_train_r/epoch=128.ckpt' \
    --save_dir_name 'results'
 ```
-
-See [opt.py](opt.py) for all configurations.
-
 You can monitor the training process by `tensorboard --logdir logs/` and go to `localhost:6006` in your browser.
 
-## Online CL 
+## Online Continual Learning 
 1. Use the “Lego” (truck) scene
 2. Create a trajectory of 5000 frames using Blender
 3. Split the trajectory into 10 chunks of 500 images each as (0 to 499), (500 to 999)........ In each chunk sample 100 test images, 400 train images.
