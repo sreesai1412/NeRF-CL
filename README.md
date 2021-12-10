@@ -9,14 +9,14 @@ Please see my presenetation on [Continual Learning for Neural Coordinate Maps](h
 #### The [main](https://github.com/sreesai1412/NeRF-CL/tree/main) branch contains code for experiments on offline continual learning.
 
 ## Online Continual Learning
-1. Use the “Lego” (truck) scene
+1. Use the “Lego” (truck) scene<br/ >
    ![lego_200k_256w](https://user-images.githubusercontent.com/48653063/145560347-f1f0fba6-6bcc-4059-9f40-dd5aea23df32.gif)
 2. Create a trajectory of 5000 frames using Blender
 3. Split the trajectory into 10 chunks of 500 images each as (0 to 499), (500 to 999)........ In each chunk sample 100 test images, 400 train images.
 4. 10 images representative of the each of the 10 chunks are shown below.
 ![Screenshot_2021-05-27_at_2 11 59_PM](https://user-images.githubusercontent.com/48653063/145557876-42201f9e-45b8-441c-83ce-6aea03319441.png)
 
-It is important to note here that there are no task boundaries in this setting and that this is a better simulation of an online setting. Unlike the first set of experiments where the network was aware of the task boundary and used continual learning techniques specifically during Task 2, the network is not aware of the transition between any of the 10 chunks and must adapt its training strategy automatically (for instance, this includes dynamically deciding what samples to retain in the the replay memory and what to discard if the memory is exhausted during training)
+It is important to note here that there are no task boundaries in this setting and that this is a better simulation of an online setting. Unlike the offline continual learning experiments where the network was aware of the task boundary and used continual learning techniques specifically during Task 2, the network is not aware of the transition between any of the 10 chunks and must adapt its training strategy automatically (for instance, this includes dynamically deciding what samples to retain in the the replay memory and what to discard if the memory is exhausted during training)
 
 ## Experiments
 #### Demonstration of Catastrophic Forgetting
