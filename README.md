@@ -1,7 +1,16 @@
 # Continual Learning for NeRF
 
+Implicit representations (such as a NeRF) offer advantages such as lower memory requirements, and the ability to complete regions of the scene where sensor observations are missing. When a NeRF is used as a scene representation, real-time SLAM can be posed as an online continual learning problem.
+
+Please see my presenetation on [Continual Learning for Neural Coordinate Maps](https://docs.google.com/presentation/d/1av8o65LiR_aHS-C5FX1DwWEPWYWEDRdb3qYNT-qf0HM/edit#slide=id.gdd7c03a931_0_34) for an overview of the key experiments performed and results obtained.
+
+#### This [online-cl](https://github.com/sreesai1412/NeRF-CL/tree/online-cl) branch contains code for experiments on online continual learning.
+
+#### The [main](https://github.com/sreesai1412/NeRF-CL/tree/main) branch contains code for experiments on offline continual learning.
+
 ## Online Continual Learning
 1. Use the “Lego” (truck) scene
+   ![lego_200k_256w](https://user-images.githubusercontent.com/48653063/145560347-f1f0fba6-6bcc-4059-9f40-dd5aea23df32.gif)
 2. Create a trajectory of 5000 frames using Blender
 3. Split the trajectory into 10 chunks of 500 images each as (0 to 499), (500 to 999)........ In each chunk sample 100 test images, 400 train images.
 4. 10 images representative of the each of the 10 chunks are shown below.
@@ -50,7 +59,6 @@ Tracking the evolution of a test image in the 3rd chunk.
 See [opt.py](opt.py) for details of all configuration parameters.
 
 ### Vanilla NeRF training on the large trajectory
-
 ```
 python train_large.py \
    --dataset_name blender_large \
@@ -71,7 +79,6 @@ python train_large.py \
 ### Online NeRF training with no Continual Learning technique  
 
 Experiment to demonstrate Catastrophic Forgetting
-
 ```
 python train_large.py \
    --dataset_name blender_large_online \
@@ -92,7 +99,6 @@ python train_large.py \
 ```
 
 ### Online NeRF training with Experience Replay
-
 ```
 python train_large.py \
    --dataset_name blender_large_online \
@@ -118,7 +124,6 @@ python train_large.py \
 ```
 
 ### Online NeRF training with the A-GEM technique
-
 ```
 python train_gem.py \
    --dataset_name blender_large_online \
